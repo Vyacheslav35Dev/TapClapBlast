@@ -3789,7 +3789,9 @@
     "winCloseButton": {
       "__id__": 58
     },
-    "loseCloseButton": null,
+    "loseCloseButton": {
+      "__id__": 72
+    },
     "_id": "e5A1pn5tVBiaxjGMkye+4R"
   },
   {
