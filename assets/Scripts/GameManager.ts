@@ -1,6 +1,6 @@
 import Tile from "./Tile";
 import {BoosterType, TileType} from "./GameTypes";
-import UiManager from "./UiManager";
+import UiManager from "./ui/UiManager";
 
 const { ccclass, property } = cc._decorator;
 
@@ -27,12 +27,25 @@ export default class GameManager extends cc.Component {
     private grid: cc.Node[][] = [];
     private selectedTile: cc.Node = null;
     private isAnimationPlaying: boolean = false;
-    private score: number = 0;
-    private movesLeft: number = 30;
+    
     private activeBooster: BoosterType = BoosterType.NONE;
     private targetTile: cc.Node = null;
+    
+    private score: number = 0;
+    private movesLeft: number = 30;
     private swapBoosterCount: number = 3;
-    private bombBoosterCount: number = 3;
+    private bombBoosterCount: number = 99;
+
+    private curScore: number = 0;
+    private curMovesLeft: number = 0;
+    private curSwapBoosterCount: number = 0;
+    private curBombBoosterCount: number = 0;
+
+    @property(cc.Integer) 
+    targetScore: number = 1000; // Целевые очки
+    @property(cc.Integer) 
+    maxMoves: number = 30; // Лимит ходов
+    
 
     protected onLoad(): void {
         this.initGame();
@@ -41,6 +54,19 @@ export default class GameManager extends cc.Component {
     private initGame(): void {
         this.setupListeners();
         this.initGrid();
+        this.startGame();
+    }
+    
+    private startGame(){
+        console.log("start game")
+        this.curScore = this.score;
+        this.curMovesLeft = this.movesLeft;
+        this.curBombBoosterCount = this.bombBoosterCount;
+        this.curSwapBoosterCount = this.swapBoosterCount;
+        this.isAnimationPlaying = false;
+
+        this.resetActiveBooster();
+        
         this.createGrid();
         this.updateUI();
     }
@@ -48,11 +74,17 @@ export default class GameManager extends cc.Component {
     private setupListeners() : void {
         this.uiManager.onSwapBoosterActivate = () => this.tryUseSwapBooster();
         this.uiManager.onBombBoosterActivate = () => this.tryUseBombBooster();
+        
+        this.uiManager.onRestartGame = () => {
+            this.startGame();
+        };
     }
 
     protected onDestroy(): void {
         this.uiManager.onSwapBoosterActivate = null;
         this.uiManager.onBombBoosterActivate = null;
+
+        this.uiManager.onRestartGame = null;
     }
 
     private initGrid() {
@@ -98,7 +130,7 @@ export default class GameManager extends cc.Component {
     }
 
     public async onTileClick(tile: cc.Node): Promise<void> {
-        if (this.isAnimationPlaying || this.movesLeft <= 0) return;
+        if (this.isAnimationPlaying || this.curMovesLeft <= 0) return;
 
         const tileComp = tile.getComponent('Tile');
         const x = tileComp.gridX;
@@ -121,25 +153,61 @@ export default class GameManager extends cc.Component {
     }
 
     public async handleNormalClick(tile: cc.Node): Promise<void> {
-        if (this.isAnimationPlaying || this.movesLeft <= 0 || !tile?.isValid) return;
+        if (this.isAnimationPlaying || this.curMovesLeft <= 0 || !tile?.isValid) return;
 
         try {
             const tileComp = tile.getComponent(Tile);
             if (!tileComp) return;
 
-            // 1. Находим только тайлы того же цвета
+            // Ищем минимум 3 соединенных тайла
             const tilesToRemove = this.findSameColorTiles(tileComp.gridX, tileComp.gridY, tileComp.tileType);
 
-            if (tilesToRemove.length < 2) return;
+            if (tilesToRemove.length < 3) { // Теперь минимум 3
+                return;
+            }
 
-            // 2. Удаляем с анимацией
-            this.movesLeft--;
+            this.curMovesLeft--;
             await this.removeTilesSafely(tilesToRemove);
             await this.fillEmptySpaces();
             this.updateUI();
+            this.checkStateWinOrLose();
         } catch (error) {
             cc.error("Tile click error:", error);
         }
+    }
+    
+    private checkStateWinOrLose() : void {
+        // Проверка победы
+        if (this.curScore >= this.targetScore) {
+            this.isAnimationPlaying = true;
+            this.uiManager.showWinPanel();
+            return;
+        }
+
+        // Проверка проигрыша
+        if (this.curMovesLeft <= 0 || !this.hasValidMoves()) {
+            this.isAnimationPlaying = true;
+            this.uiManager.showLosePanel();
+        }
+    }
+
+    private hasValidMoves(): boolean {
+        for (let y = 0; y < this.gridHeight; y++) {
+            for (let x = 0; x < this.gridWidth; x++) {
+                const tile = this.grid[y][x];
+                if (!tile) continue;
+
+                const tileComp = tile.getComponent(Tile);
+                if (!tileComp) continue;
+
+                // Проверяем есть ли хотя бы 3 тайла такого же цвета
+                const sameColorTiles = this.findSameColorTiles(x, y, tileComp.tileType);
+                if (sameColorTiles.length >= 3) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private findSameColorTiles(startX: number, startY: number, targetType: TileType): cc.Node[] {
@@ -297,11 +365,12 @@ export default class GameManager extends cc.Component {
             }
         }
 
-        this.bombBoosterCount--;
+        this.curBombBoosterCount--;
         await this.removeTilesSafely(tilesToRemove);
         await this.fillEmptySpaces();
         this.resetActiveBooster();
         this.updateUI();
+        this.checkStateWinOrLose();
     }
 
     private async fillEmptySpaces(): Promise<void> {
@@ -421,15 +490,15 @@ export default class GameManager extends cc.Component {
     }
 
     private addScore(points: number): void {
-        this.score += points;
+        this.curScore += points;
         this.updateUI();
     }
 
     private updateUI(): void {
-        this.uiManager.SetScoreCount(this.score);
-        this.uiManager.SetMoves(this.movesLeft);
-        this.uiManager.SetSwapBoosterCount(this.swapBoosterCount);
-        this.uiManager.SetBoombBoosterCount(this.bombBoosterCount);
+        this.uiManager.SetScoreCount(this.curScore, this.targetScore);
+        this.uiManager.SetMoves(this.curMovesLeft);
+        this.uiManager.SetSwapBoosterCount(this.curSwapBoosterCount);
+        this.uiManager.SetBoombBoosterCount(this.curBombBoosterCount);
     }
 
     public tryUseSwapBooster(): void {
@@ -438,7 +507,7 @@ export default class GameManager extends cc.Component {
 
     public tryUseBombBooster(): void {
         console.log("Booster click")
-        if (this.bombBoosterCount > 0) {
+        if (this.curBombBoosterCount > 0) {
             this.activeBooster = BoosterType.BOMB;
             this.uiManager.onBombButtonActivated(true);
         }
