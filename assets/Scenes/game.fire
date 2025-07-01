@@ -23,7 +23,7 @@
         "__id__": 52
       }
     ],
-    "_active": true,
+    "_active": false,
     "_components": [],
     "_prefab": null,
     "_opacity": 255,
@@ -2352,7 +2352,7 @@
   },
   {
     "__type__": "cc.Node",
-    "_name": "Gameboard",
+    "_name": "GameManager",
     "_objFlags": 0,
     "_parent": {
       "__id__": 1
@@ -2413,7 +2413,7 @@
     "_id": "484ERe/GFOirBUgQgkowbz"
   },
   {
-    "__type__": "eded9trbTlLR7Tz6B3Xgp9T",
+    "__type__": "dcadamzOHxLQoNl6SgJsN5C",
     "_name": "",
     "_objFlags": 0,
     "node": {
@@ -2423,20 +2423,16 @@
     "tilePrefab": {
       "__uuid__": "8a8ac2cc-90e8-48a1-9e97-51be88c28d3c"
     },
-    "rootField": {
+    "gameField": {
       "__id__": 20
     },
-    "boardWidth": 9,
-    "boardHeight": 9,
-    "tileTypes": 5,
+    "gridWidth": 8,
+    "gridHeight": 8,
     "tileSize": 80,
-    "tileSpacing": 5,
-    "maxMoves": 30,
-    "bombRadius": 1,
     "uiManager": {
       "__id__": 51
     },
-    "_id": "3bxTRz4OBPkLaJRNVjhAYv"
+    "_id": "e8CbC53GxLoLCJ8xI4br0N"
   },
   {
     "__type__": "51d50cUaAxOrqs9/uPEwe9T",
@@ -2460,14 +2456,16 @@
     },
     "losePanel": null,
     "winPanel": null,
-    "swapBoosterButton": {
+    "swapButton": {
       "__id__": 33
     },
-    "bombBoosterButton": {
+    "bombButton": {
       "__id__": 43
     },
-    "text": "hello",
-    "_id": "afmxQYxplNZ4RiE4l1uaRe"
+    "gameManager": {
+      "__id__": 50
+    },
+    "_id": "e5A1pn5tVBiaxjGMkye+4R"
   },
   {
     "__type__": "cc.Node",
