@@ -15,59 +15,55 @@ export default class UiManager extends cc.Component {
     @property(cc.Button) private swapButton: cc.Button = null;
     @property(cc.Button) private bombButton: cc.Button = null;
 
-    // Убираем публичные EventTarget, так как будем использовать callbacks
-    @property(GameManager)
-    private gameManager: GameManager = null;
+    public onSwapBoosterActivate: () => void = null;
+    public onBombBoosterActivate: () => void = null;
 
     protected onLoad(): void {
-        // Получаем GameManager через свойство, а не через поиск
-        if (!this.gameManager) {
-            this.gameManager = cc.find("GameManager").getComponent(GameManager);
-        }
-
         this.swapButton.node.on('click', this.onSwapClick, this);
         this.bombButton.node.on('click', this.onBombClick, this);
-
-        // Подписываемся на события через методы GameManager
-        if (this.gameManager) {
-            this.gameManager.onSwapBoosterActivated = () => this.onSwapActivated();
-            this.gameManager.onBombBoosterActivated = () => this.onBombActivated();
-        }
     }
 
     protected onDestroy(): void {
         this.swapButton.node.off('click', this.onSwapClick, this);
         this.bombButton.node.off('click', this.onBombClick, this);
-
-        // Отписываемся от событий
-        if (this.gameManager) {
-            this.gameManager.onSwapBoosterActivated = null;
-            this.gameManager.onBombBoosterActivated = null;
-        }
     }
 
     private onSwapClick(): void {
-        if (this.gameManager) {
-            if (!this.gameManager.tryUseSwapBooster()) {
-                this.shakeButton(this.swapButton.node);
-            }
+        if (this.onSwapBoosterActivate) {
+            this.onSwapBoosterActivate();
         }
     }
 
     private onBombClick(): void {
-        if (this.gameManager) {
-            if (!this.gameManager.tryUseBombBooster()) {
-                this.shakeButton(this.bombButton.node);
-            }
+        console.log('click')
+        //if (this.onBombBoosterActivate) {
+           this.onBombBoosterActivate();
+        //}
+    }
+
+    public onSwapButtonActivated(state : boolean): void {
+        if (state)
+        {
+            this.shakeButton(this.swapButton.node);
+            this.highlightButton(this.swapButton.node);
+        }
+        else
+        {
+            this.shakeButton(this.swapButton.node);
         }
     }
 
-    private onSwapActivated(): void {
-        this.highlightButton(this.swapButton.node);
-    }
-
-    private onBombActivated(): void {
-        this.highlightButton(this.bombButton.node);
+    public onBombButtonActivated(state : boolean): void {
+        if (state)
+        {
+            this.shakeButton(this.bombButton.node);
+            this.highlightButton(this.bombButton.node);
+        }
+        else
+        {
+            this.shakeButton(this.bombButton.node);
+        }
+        
     }
 
     private highlightButton(button: cc.Node): void {

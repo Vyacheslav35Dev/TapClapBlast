@@ -34,17 +34,25 @@ export default class GameManager extends cc.Component {
     private swapBoosterCount: number = 3;
     private bombBoosterCount: number = 3;
 
-    public onSwapBoosterActivated: () => void = null;
-    public onBombBoosterActivated: () => void = null;
-
     protected onLoad(): void {
         this.initGame();
     }
 
     private initGame(): void {
+        this.setupListeners();
         this.initGrid();
         this.createGrid();
         this.updateUI();
+    }
+    
+    private setupListeners() : void {
+        this.uiManager.onSwapBoosterActivate = () => this.tryUseSwapBooster();
+        this.uiManager.onBombBoosterActivate = () => this.tryUseBombBooster();
+    }
+
+    protected onDestroy(): void {
+        this.uiManager.onSwapBoosterActivate = null;
+        this.uiManager.onBombBoosterActivate = null;
     }
 
     private initGrid() {
@@ -424,26 +432,17 @@ export default class GameManager extends cc.Component {
         this.uiManager.SetBoombBoosterCount(this.bombBoosterCount);
     }
 
-    public tryUseSwapBooster(): boolean {
-        /*if (this.swapBoosterCount > 0) {
-            this.activeBooster = BoosterType.SWAP;
-            if (this.onSwapBoosterActivated) {
-                this.onSwapBoosterActivated();
-            }
-            return true;
-        }*/
-        return false;
+    public tryUseSwapBooster(): void {
+        this.uiManager.onSwapButtonActivated(false);
     }
 
-    public tryUseBombBooster(): boolean {
+    public tryUseBombBooster(): void {
+        console.log("Booster click")
         if (this.bombBoosterCount > 0) {
             this.activeBooster = BoosterType.BOMB;
-            if (this.onBombBoosterActivated) {
-                this.onBombBoosterActivated();
-            }
-            return true;
+            this.uiManager.onBombButtonActivated(true);
         }
-        return false;
+        this.uiManager.onBombButtonActivated(false);
     }
 
     private resetActiveBooster(): void {
