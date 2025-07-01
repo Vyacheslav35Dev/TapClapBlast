@@ -35,10 +35,9 @@ export default class UiManager extends cc.Component {
     }
 
     private onBombClick(): void {
-        console.log('click')
-        //if (this.onBombBoosterActivate) {
+        if (this.onBombBoosterActivate) {
            this.onBombBoosterActivate();
-        //}
+        }
     }
 
     public onSwapButtonActivated(state : boolean): void {
