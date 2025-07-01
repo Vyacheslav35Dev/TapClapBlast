@@ -72,13 +72,25 @@ export default class Tile extends cc.Component {
     }
 
     public async explode(): Promise<void> {
-        this.node.stopAllActions();
+        if (!this.node?.isValid) return Promise.resolve();
+
         return new Promise(resolve => {
-            cc.tween(this.node)
-                .to(0.1, { scale: 1.5 })
-                .to(0.1, { scale: 0 })
-                .call(() => resolve())
-                .start();
+            try {
+                this.node.stopAllActions();
+
+                cc.tween(this.node)
+                    .to(0.2, { scale: 1.5, opacity: 0 })
+                    .call(() => {
+                        if (this.node.isValid) {
+                            this.node.destroy();
+                        }
+                        resolve();
+                    })
+                    .start();
+            } catch (error) {
+                cc.error("Explode animation error:", error);
+                resolve();
+            }
         });
     }
 

@@ -112,40 +112,110 @@ export default class GameManager extends cc.Component {
         }
     }
 
-    private async handleNormalClick(tile: cc.Node): Promise<void> {
-        const tileComp = tile.getComponent('Tile');
-        const matches = this.findAllMatchesForTile(tileComp.gridX, tileComp.gridY);
+    public async handleNormalClick(tile: cc.Node): Promise<void> {
+        if (this.isAnimationPlaying || this.movesLeft <= 0 || !tile?.isValid) return;
 
-        if (matches.length >= 3) {
+        try {
+            const tileComp = tile.getComponent(Tile);
+            if (!tileComp) return;
+
+            // 1. Находим только тайлы того же цвета
+            const tilesToRemove = this.findSameColorTiles(tileComp.gridX, tileComp.gridY, tileComp.tileType);
+
+            if (tilesToRemove.length < 2) return;
+
+            // 2. Удаляем с анимацией
             this.movesLeft--;
-            await this.removeTiles(matches);
+            await this.removeTilesSafely(tilesToRemove);
             await this.fillEmptySpaces();
             this.updateUI();
+        } catch (error) {
+            cc.error("Tile click error:", error);
         }
     }
 
-    private findAllMatchesForTile(x: number, y: number): cc.Node[] {
-        if (!this.grid[y] || !this.grid[y][x]) return [];
+    private findSameColorTiles(startX: number, startY: number, targetType: TileType): cc.Node[] {
+        const tiles: cc.Node[] = [];
+        const visited = new Set<string>();
+        const queue: [number, number][] = [[startX, startY]];
 
-        const tileComp = this.grid[y][x].getComponent(Tile);
-        const tileType = tileComp.tileType;
+        while (queue.length > 0) {
+            const [x, y] = queue.shift()!;
+            const key = `${x},${y}`;
 
-        const horizontalMatchNodes = [this.grid[y][x]];
-        horizontalMatchNodes.push(...this.findMatchesInDirection(x, y, 1, 0, tileType));
-        horizontalMatchNodes.push(...this.findMatchesInDirection(x, y, -1, 0, tileType));
+            if (visited.has(key)) continue;
+            if (!this.isValidPosition(x, y)) continue;
 
-        const verticalMatchNodes = [this.grid[y][x]];
-        verticalMatchNodes.push(...this.findMatchesInDirection(x, y, 0, 1, tileType));
-        verticalMatchNodes.push(...this.findMatchesInDirection(x, y, 0, -1, tileType));
+            const tile = this.grid[y]?.[x];
+            if (!tile?.isValid) continue;
 
-        // Объединяем все уникальные тайлы
-        const allMatchNodesSet = new Set<cc.Node>([...horizontalMatchNodes,...verticalMatchNodes]);
+            const tileComp = tile.getComponent(Tile);
+            if (!tileComp || tileComp.tileType !== targetType) continue;
 
-        if (allMatchNodesSet.size >=3) {
-            return Array.from(allMatchNodesSet);
-        } else {
-            return [];
+            visited.add(key);
+            tiles.push(tile);
+
+            // Добавляем соседей
+            queue.push([x + 1, y]);
+            queue.push([x - 1, y]);
+            queue.push([x, y + 1]);
+            queue.push([x, y - 1]);
         }
+
+        return tiles;
+    }
+
+    private async removeTilesSafely(tiles: cc.Node[]): Promise<void> {
+        if (!tiles?.length) return;
+
+        this.isAnimationPlaying = true;
+
+        try {
+            // 1. Подсветка перед удалением
+            await this.highlightTiles(tiles);
+
+            // 2. Удаляем с анимацией
+            const destroyPromises = tiles.map(tile => {
+                if (!tile.isValid) return Promise.resolve();
+
+                const tileComp = tile.getComponent(Tile);
+                if (!tileComp) return Promise.resolve();
+
+                // Помечаем как null в сетке перед анимацией
+                this.grid[tileComp.gridY][tileComp.gridX] = null;
+                return tileComp.explode();
+            });
+
+            await Promise.all(destroyPromises);
+
+            // 3. Начисляем очки
+            this.addScore(tiles.length * 10);
+        } catch (error) {
+            cc.error("Remove tiles error:", error);
+        } finally {
+            this.isAnimationPlaying = false;
+        }
+    }
+
+    private async highlightTiles(tiles: cc.Node[]): Promise<void> {
+        await Promise.all(
+            tiles.map(tile => {
+                return new Promise<void>(resolve => {
+                    if (!tile.isValid) return resolve();
+
+                    cc.tween(tile)
+                        .to(0.1, { scale: 1.2, color: cc.Color.RED })
+                        .to(0.1, { scale: 1.0, color: cc.Color.WHITE })
+                        .call(resolve)
+                        .start();
+                });
+            })
+        );
+    }
+
+    private isValidPosition(x: number, y: number): boolean {
+        return x >= 0 && x < this.gridWidth &&
+            y >= 0 && y < this.gridHeight;
     }
 
     private findMatchesAt(x: number, y: number): cc.Node[] {
@@ -220,29 +290,10 @@ export default class GameManager extends cc.Component {
         }
 
         this.bombBoosterCount--;
-        await this.removeTiles(tilesToRemove);
+        await this.removeTilesSafely(tilesToRemove);
         await this.fillEmptySpaces();
         this.resetActiveBooster();
         this.updateUI();
-    }
-
-    private async removeTiles(tiles: cc.Node[]): Promise<void> {
-        if (tiles.length === 0) return;
-
-        // 1. Запускаем анимацию взрыва для всех тайлов
-        await Promise.all(tiles.map(tile => {
-            return tile.getComponent('Tile').explode();
-        }));
-
-        // 2. Удаляем тайлы из сетки
-        tiles.forEach(tile => {
-            const tileComp = tile.getComponent('Tile');
-            this.grid[tileComp.gridY][tileComp.gridX] = null;
-            tile.destroy();
-        });
-
-        // 3. Добавляем очки
-        this.score += tiles.length * 10;
     }
 
     private async fillEmptySpaces(): Promise<void> {
@@ -286,7 +337,6 @@ export default class GameManager extends cc.Component {
                         break;
                     }
                 }
-
                 
                 for (let i = 0; i < emptyTopSpots; i++) {
                     const targetY = this.gridHeight - 1 - i;
@@ -360,10 +410,6 @@ export default class GameManager extends cc.Component {
         } finally {
             this.isAnimationPlaying = false;
         }
-    }
-
-    private isValidPosition(x: number, y: number): boolean {
-        return x >= 0 && x < this.gridWidth && y >= 0 && y < this.gridHeight;
     }
 
     private addScore(points: number): void {
